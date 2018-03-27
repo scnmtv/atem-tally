@@ -15,6 +15,15 @@
 #include "SkaarhojTools.h"
 SkaarhojTools sTools(1);
 
+#include<nRF24L01.h>
+#include<RF24.h>
+
+int msg[1] = {1};
+int rec[1] = {5};
+bool stat = false;
+RF24 radio(9, 10);
+const uint64_t pipe[1] = {0xF0F0F0F0E1LL};
+
 uint8_t ipc[4];           // Will hold the C200 IP address in config mode
 uint8_t ip[4];            // Will hold the C200 IP address
 uint8_t atem_ip[4];       // Will hold the ATEM IP address
@@ -30,7 +39,7 @@ uint8_t greenLED = 22;
 uint8_t redLED = 23;
 
 bool isConfigMode;            // If set, the system will run the Web Configurator, not the normal program
-int ind1, ind2, ind3, ind4;   // temp storage for parsing 
+int ind1, ind2, ind3, ind4;   // temp storage for parsing
 String temp;
 
 uint8_t programTally;         // for tally stuff
@@ -43,6 +52,16 @@ uint8_t transitionTally;
 void setup() {
   Serial.begin(9600);
   Serial << F("\n- - - - - - - -\nSerial Started\n\n");
+
+  // radio
+  radio.begin();
+  delay(100);
+  radio.setAutoAck(true);
+  radio.enableAckPayload();
+  radio.enableDynamicPayloads();
+  radio.stopListening();
+  radio.openWritingPipe(pipe[0]);
+  radio.setRetries(15, 15);
 
   pinMode(A1, INPUT_PULLUP);
   delay(300);
@@ -180,7 +199,33 @@ void loop() {
       }
 
 
-      DejanTallyLights();
+      Serial.println(DejanTallyLights(), BIN);
+      
+      // send to radio
+      if (stat)
+      {
+        if (radio.write(msg, sizeof(msg)))
+        {
+          Serial.print( msg[0] );
+          Serial.println("...tx success");
+          if (radio.isAckPayloadAvailable())
+          {
+            radio.read(rec, sizeof(int));
+            Serial.print("received ack payload is : ");
+            Serial.println(rec[0]);
+          }
+          else
+          {
+            stat = false;             //doing this completely shuts down the transmitter if an ack payload is not received !!
+            Serial.println("status has become false so stop here....");
+          }
+          msg[0] += 3;;
+          if (msg[0] >= 100)
+          {
+            msg[0] = 1;
+          }
+        }
+      }
 
     }
 
@@ -242,20 +287,21 @@ void loop() {
   }
 }
 
-void DejanTallyLights() {
+uint8_t DejanTallyLights() {
   // get tally 2x
   programTally = AtemSwitcher.getProgramInputVideoSource(0);
-
+  
   // zapakirati v en byte in poslati nazaj - TODO
   //
-  Serial.print("Svetim rdece program: ");
-  Serial.println(programTally);
+  //Serial.print("Svetim rdece program: ");
+  Serial.print(programTally);
   if (AtemSwitcher.getTransitionInTransition(0)) {
     transitionTally = AtemSwitcher.getPreviewInputVideoSource(0);
-    Serial.print("Svetim rdece ker v transitionu: ");
+  //  Serial.print("Svetim rdece ker v transitionu: ");
     Serial.println(transitionTally);
   }
   Serial.println();
+  return (programTally | transitionTally);
 }
 
 void parseInput(String str) {
