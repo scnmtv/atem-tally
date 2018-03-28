@@ -42,8 +42,9 @@ bool isConfigMode;            // If set, the system will run the Web Configurato
 int ind1, ind2, ind3, ind4;   // temp storage for parsing
 String temp;
 
-uint8_t programTally;         // for tally stuff
-uint8_t transitionTally;
+uint8_t transitionTally;         // for tally stuff
+uint8_t programTally;
+uint8_t tempTally = 1;
 
 /***********************************************************
                        MAIN PROGRAM CODE AHEAD
@@ -200,7 +201,8 @@ void loop() {
 
 
       Serial.println(DejanTallyLights(), BIN);
-      
+      Serial.println(" ");
+
       // send to radio
       if (stat)
       {
@@ -243,8 +245,8 @@ void loop() {
       //Serial.println("Connection to ATEM Switcher has timed out - reconnecting!");
 
       // Set Bi-color LED orange - indicates "connecting...":
-      digitalWrite(greenLED, true);
-      digitalWrite(redLED, true);
+      //digitalWrite(greenLED, true);
+      //digitalWrite(redLED, true);
     }
   }
 
@@ -288,19 +290,21 @@ void loop() {
 }
 
 uint8_t DejanTallyLights() {
+
   // get tally 2x
+  tempTally = 1;
   programTally = AtemSwitcher.getProgramInputVideoSource(0);
-  
-  // zapakirati v en byte in poslati nazaj - TODO
-  //
-  //Serial.print("Svetim rdece program: ");
-  Serial.print(programTally);
+  if ( programTally > 1 )  tempTally = tempTally << programTally - 1;
+  programTally = tempTally;
+
   if (AtemSwitcher.getTransitionInTransition(0)) {
+
+    tempTally = 1;
     transitionTally = AtemSwitcher.getPreviewInputVideoSource(0);
-  //  Serial.print("Svetim rdece ker v transitionu: ");
-    Serial.println(transitionTally);
+    if ( transitionTally > 1 ) tempTally = tempTally << transitionTally - 1;
+    transitionTally = tempTally;
   }
-  Serial.println();
+  else transitionTally = 0;
   return (programTally | transitionTally);
 }
 
