@@ -1,7 +1,7 @@
 /*****************
    A Tally box for Blackmagic ATEM Switchers
 
-   - wifi module added
+   - nrf24L01 module added
    - and other stuff
 
 */
@@ -15,15 +15,20 @@
 #include "SkaarhojTools.h"
 SkaarhojTools sTools(1);
 
-#include<nRF24L01.h>
-#include<RF24.h>
+#include "nRF24L01.h"
+#include "RF24.h"
+#include "printf.h"
 
-int msg[1] = {1};
-int rec[1] = {5};
-bool stat = false;
-RF24 radio(9, 10);
-const uint64_t pipe[1] = {0xF0F0F0F0E1LL};
+// Hardware configuration: Set up nRF24L01 radio on SPI bus plus pins CE & CSN
+RF24 radio(49, 53);
 
+// Topology
+const uint64_t pipes[2] = { 0xABCDABCD71LL, 0x544d52687CLL };              // Radio pipe addresses for the 2 nodes to communicate.
+
+// for sending tally info - future use
+bool stat = true;
+
+// address setup variables
 uint8_t ipc[4];           // Will hold the C200 IP address in config mode
 uint8_t ip[4];            // Will hold the C200 IP address
 uint8_t atem_ip[4];       // Will hold the ATEM IP address
@@ -51,18 +56,28 @@ uint8_t tempTally = 1;
  **********************************************************/
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(115200);
   Serial << F("\n- - - - - - - -\nSerial Started\n\n");
 
-  // radio
+  // ****************************************************************
+  // radio SETUP - adjust power?
+  //
+  printf_begin();
+  Serial.println(F("\n\rradio details: TRANSMITTER\n\r"));
+
+  // Setup and configure rf radio
   radio.begin();
-  delay(100);
-  radio.setAutoAck(true);
-  radio.enableAckPayload();
-  radio.enableDynamicPayloads();
-  radio.stopListening();
-  radio.openWritingPipe(pipe[0]);
-  radio.setRetries(15, 15);
+  radio.setPALevel(RF24_PA_HIGH);         // MIN, LOW, HIGH, MAX
+  radio.setAutoAck(0);                    // Ensure autoACK is enabled
+  //  radio.enableAckPayload();               // Allow optional ack payloads
+  radio.setRetries(0, 15);                // Smallest time between retries, max no. of retries
+  radio.setPayloadSize(1);                // Here we are sending 1-byte payloads to test the call-response speed
+  radio.openWritingPipe(pipes[0]);        // Both radios listen on the same pipes by default, and switch when writing
+  radio.openReadingPipe(1, pipes[1]);
+  radio.startListening();                 // Start listening
+  radio.printDetails();                   // Dump the configuration of the rf unit for debugging
+
+  // ****************************************************************
 
   pinMode(A1, INPUT_PULLUP);
   delay(300);
@@ -206,27 +221,7 @@ void loop() {
       // send to radio
       if (stat)
       {
-        if (radio.write(msg, sizeof(msg)))
-        {
-          Serial.print( msg[0] );
-          Serial.println("...tx success");
-          if (radio.isAckPayloadAvailable())
-          {
-            radio.read(rec, sizeof(int));
-            Serial.print("received ack payload is : ");
-            Serial.println(rec[0]);
-          }
-          else
-          {
-            stat = false;             //doing this completely shuts down the transmitter if an ack payload is not received !!
-            Serial.println("status has become false so stop here....");
-          }
-          msg[0] += 3;;
-          if (msg[0] >= 100)
-          {
-            msg[0] = 1;
-          }
-        }
+        sendData(DejanTallyLights());
       }
 
     }
@@ -325,3 +320,33 @@ void parseInput(String str) {
   temp = str.substring(ind3 + 1);                   //captures remain part of data after last
   ipc[3] = temp.toInt();
 }
+
+void sendData(int stevilo) {
+
+  radio.stopListening();                                  // First, stop listening so we can talk.
+
+  //printf("Now sending %d as payload... \n\r", stevilo);
+  byte gotByte;
+  //unsigned long time = micros();                          // Take the time, and send it.  This will block until complete
+  //Called when STANDBY-I mode is engaged (User is finished sending)
+  if (!radio.write( &stevilo, 1 )) {
+    Serial.println(F("failed."));
+  } else {
+
+    // ce imamo ACK!
+    /*
+      if (!radio.available()) {
+      Serial.println(F("Blank Payload Received."));
+      } else {
+      while (radio.available() ) {
+        unsigned long tim = micros();
+        radio.read( &gotByte, 1 );
+        printf("Got response %d, round-trip delay: %lu microseconds\n\r", gotByte, tim - time);
+        //counter++;
+      }
+      }
+    */
+  }
+}
+
+
