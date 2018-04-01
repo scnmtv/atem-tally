@@ -51,6 +51,12 @@ uint8_t transitionTally;         // for tally stuff
 uint8_t programTally;
 uint8_t tempTally = 1;
 
+// Channel info - SCANNER
+const uint8_t num_channels = 126;
+uint8_t values[num_channels];
+uint8_t num_reps = 100;
+
+
 /***********************************************************
                        MAIN PROGRAM CODE AHEAD
  **********************************************************/
@@ -67,6 +73,7 @@ void setup() {
 
   // Setup and configure rf radio
   radio.begin();
+  radio.setChannel(110);                  // set channel
   radio.setPALevel(RF24_PA_HIGH);         // MIN, LOW, HIGH, MAX
   radio.setAutoAck(0);                    // Ensure autoACK is enabled
   //  radio.enableAckPayload();               // Allow optional ack payloads
@@ -170,11 +177,13 @@ void setup() {
     Serial.println();
     Serial.println("******* Config Mode *******");
     Serial.println();
-    Serial.println(" In this mode one can setup IP address of this device and ATEM switcher over serial console.");
+    Serial.println(" In this mode one can setup IP address of this device and ATEM switcher over serial console and scan frequencies.");
     Serial.println();
     Serial.println(" EXAMPLE for device IP: D_192.168.0.1 [enter]");
     Serial.println();
     Serial.println("   EXAMPLE for ATEM IP: A_192.168.0.1 [enter]");
+    Serial.println();
+    Serial.println(" EXAMPLE for FREQ scan: FS [enter]");
     Serial.println();
     Serial.println("After input the device will reply if data has been successfully accepted/stored.");
     Serial.println();
@@ -276,7 +285,16 @@ void loop() {
         EEPROM.write(9, ipc[3]);
         Serial.println("data SAVED!");
       }
-
+      else if (str.charAt(0) == 'F' && str.charAt(1) == 'S') {
+        Serial.println("identified FREQ scanner");
+        Serial.println("scanning...");
+        int i = num_reps;
+        while (i > 0)
+        {
+          scanner();
+          i--;
+        }
+      }
       else {
         Serial.println("invalid data received...");
       }
@@ -323,10 +341,10 @@ void parseInput(String str) {
 
 void sendData(int stevilo) {
 
-  radio.stopListening();                                  // First, stop listening so we can talk.
+  radio.stopListening();                                    // First, stop listening so we can talk.
 
   //printf("Now sending %d as payload... \n\r", stevilo);
-  byte gotByte;
+  //byte gotByte;
   //unsigned long time = micros();                          // Take the time, and send it.  This will block until complete
   //Called when STANDBY-I mode is engaged (User is finished sending)
   if (!radio.write( &stevilo, 1 )) {
@@ -349,4 +367,42 @@ void sendData(int stevilo) {
   }
 }
 
+void scanner() {
+
+  // Clear measurement values
+  memset(values, 0, sizeof(values));
+
+  // Scan all channels num_reps times
+
+  int rep_counter = num_reps;
+  while (rep_counter > 0)
+  {
+    int i = num_channels;
+    while (i--)
+    {
+      // Select this channel
+      radio.setChannel(i);
+
+      // Listen for a little
+      radio.startListening();
+      delayMicroseconds(128);
+      radio.stopListening();
+
+      // Did we get a carrier?
+      if ( radio.testCarrier() ) {
+        ++values[i];
+      }
+    }
+    rep_counter--;
+  }
+
+  // Print out channel measurements, clamped to a single hex digit
+  int j = 0;
+  while ( j < num_channels )
+  {
+    printf("%x", min(0xf, values[j]));
+    ++j;
+  }
+  Serial.println();
+}
 
