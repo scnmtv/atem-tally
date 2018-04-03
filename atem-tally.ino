@@ -1,8 +1,12 @@
 /*****************
    A Tally box for Blackmagic ATEM Switchers
 
+  IMPORTANT: library used - https://github.com/nRF24/RF24
+  
    - nrf24L01 module added
-   - and other stuff
+   - adjust radio.setChannel(CH) between 0-125 (2.400MHz - 2.525MHz)
+
+  29.3.2018 - Ferbi
 
 */
 
@@ -23,7 +27,7 @@ SkaarhojTools sTools(1);
 RF24 radio(49, 53);
 
 // Topology
-const uint64_t pipes[2] = { 0xABCDABCD71LL, 0x544d52687CLL };              // Radio pipe addresses for the 2 nodes to communicate.
+const uint64_t pipes[2] = { 0xABCDABFF51LL, 0x544d52687CAA };              // Radio pipe addresses for the 2 nodes to communicate.
 
 // for sending tally info - future use
 bool stat = true;
@@ -40,8 +44,9 @@ uint8_t mac[6];           // Will hold the Arduino Ethernet shield/board MAC add
 #include <ATEMmin.h>
 ATEMmin AtemSwitcher;
 
+// for ATEM status indicator
 uint8_t greenLED = 22;
-uint8_t redLED = 23;
+//uint8_t redLED = 23;
 
 bool isConfigMode;            // If set, the system will run the Web Configurator, not the normal program
 int ind1, ind2, ind3, ind4;   // temp storage for parsing
@@ -54,7 +59,7 @@ uint8_t tempTally = 1;
 // Channel info - SCANNER
 const uint8_t num_channels = 126;
 uint8_t values[num_channels];
-uint8_t num_reps = 100;
+uint8_t num_reps = 15;
 
 
 /***********************************************************
@@ -163,10 +168,8 @@ void setup() {
   Ethernet.begin(mac, ip);
 
   // Sets the Bi-color LED to off = "no connection"
-  digitalWrite(greenLED, false);
-  digitalWrite(redLED, false);
   pinMode(greenLED, OUTPUT);
-  pinMode(redLED, OUTPUT);
+//  pinMode(redLED, OUTPUT);
 
   // *********************************
   // Final Setup based on mode
@@ -197,9 +200,6 @@ void setup() {
     // AtemSwitcher.serialOutput(true);
     AtemSwitcher.connect();
 
-    // Set Bi-color LED orange - indicates "connecting...":
-    digitalWrite(greenLED, true);
-    digitalWrite(redLED, true);
   }
   Serial << F("Setup DONE!\n- - - - - - - -\n\n");
 }
@@ -219,13 +219,13 @@ void loop() {
       if (!AtemOnline)  {
         AtemOnline = true;
         // Set Bi-color LED to red or green depending on mode:
-        digitalWrite(redLED, false);
+        //digitalWrite(redLED, false);
         digitalWrite(greenLED, true);
       }
 
-
-      Serial.println(DejanTallyLights(), BIN);
-      Serial.println(" ");
+      // sebud sendData
+      //Serial.println(DejanTallyLights(), BIN);
+      //Serial.println(" ");
 
       // send to radio
       if (stat)
@@ -242,7 +242,7 @@ void loop() {
 
         // Set Bi-color LED off = "no connection"
         digitalWrite(greenLED, false);
-        digitalWrite(redLED, false);
+        //digitalWrite(redLED, false);
         Serial.println("Atem not online!");
       }
 
