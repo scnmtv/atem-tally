@@ -41,8 +41,8 @@ uint8_t mac[6];           // Will hold the Arduino Ethernet shield/board MAC add
 #include <MemoryFree.h>
 
 // Include ATEM library and make an instance:
-#include <ATEMmin.h>
-ATEMmin AtemSwitcher;
+#include <ATEMext.h>
+ATEMext AtemSwitcher;
 
 // for ATEM status indicator
 uint8_t greenLED = 22;
